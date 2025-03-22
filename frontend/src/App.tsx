@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import SecurityAssessment from './components/Security';
+import SecurityAssessment from './components/Securitysurvey';
 
 function App() {
   return (
