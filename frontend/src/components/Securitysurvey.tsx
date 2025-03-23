@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { AlertTriangle, CheckCircle, Clock, Download, Send, FileText, PieChart as  BarChart2 } from 'lucide-react';
 
 // Define the base URL for API requests
-const API_BASE_URL = 'https://securebackend.saransathish.click:8000/api'; 
+const API_BASE_URL = 'https://securebackend.saransathish.click/api'; 
 
 // const API_BASE_URL = 'http://localhost:5000/api'; 
 
