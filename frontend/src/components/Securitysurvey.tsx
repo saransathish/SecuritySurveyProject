@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { AlertTriangle, CheckCircle, Clock, Download, Send, ChevronRight, FileText, PieChart as PieChartIcon, BarChart2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Download, Send, FileText, PieChart as  BarChart2 } from 'lucide-react';
 
 // Define the base URL for API requests
-const API_BASE_URL = 'http://localhost:5000/api';
+// const API_BASE_URL = 'http://18.220.199.73:8000/api'; 
+const API_BASE_URL = 'http://localhost:5000/api'; 
+
 
 // Types for our application
 interface Message {
@@ -19,9 +21,9 @@ interface Session {
   state: string;
 }
 
-interface StoreInfo {
-  [key: string]: string;
-}
+// interface StoreInfo {
+//   [key: string]: string;
+// }
 
 interface RiskReport {
   identified_risks: string[];
@@ -240,17 +242,17 @@ const countNearbyPoints = (areaData: AreaAnalysis) => {
 };
 
 // Format population data for display
-const formatPopulationData = (areaData: AreaAnalysis) => {
-  if (!areaData || !areaData.success) return null;
+// const formatPopulationData = (areaData: AreaAnalysis) => {
+//   if (!areaData || !areaData.success) return null;
 
-  return {
-    density: areaData.population?.density || 'Unknown',
-    estimatedPopulation: areaData.population?.estimated_population || 'Unknown',
-    studentPopulation: areaData.student_population?.estimated_students || 'Unknown',
-    universities: areaData.student_population?.universities || 0,
-    colleges: areaData.student_population?.colleges || 0,
-  };
-};
+//   return {
+//     density: areaData.population?.density || 'Unknown',
+//     estimatedPopulation: areaData.population?.estimated_population || 'Unknown',
+//     studentPopulation: areaData.student_population?.estimated_students || 'Unknown',
+//     universities: areaData.student_population?.universities || 0,
+//     colleges: areaData.student_population?.colleges || 0,
+//   };
+// };
 
   // Download a report
   const downloadReport = async (reportType: 'quick' | 'detailed') => {
@@ -533,8 +535,9 @@ const formatPopulationData = (areaData: AreaAnalysis) => {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {riskCategories.map((entry, index) => (
+                    {riskCategories.map((_entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      
                     ))}
                   </Pie>
                   <Tooltip />
