@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_file
+from fpdf.enums import XPos, YPos
 from flask_cors import CORS
 import pandas as pd
 import json
@@ -15,6 +16,16 @@ from langchain.prompts import PromptTemplate
 from pydantic import Field
 import uuid
 from dotenv import load_dotenv
+import googlemaps
+import requests
+from geopy.geocoders import Nominatim
+import time
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 load_dotenv()
 
 app = Flask(__name__)
@@ -159,6 +170,179 @@ class DataProcessor:
             print(f"Error getting solution details: {str(e)}")
             return None
 
+# Add this class after the DataProcessor class
+class AreaAnalysis:
+    def __init__(self):
+        # Load API key from environment variables
+        self.google_api_key = os.getenv("GOOGLE_PLACES_API_KEY")
+        self.gmaps = googlemaps.Client(key=self.google_api_key) if self.google_api_key else None
+        self.geolocator = Nominatim(user_agent="security_assessment_app")
+        
+    def geocode_address(self, address, postcode):
+        """Convert address to latitude and longitude"""
+        try:
+            # Combine address and postcode for better results
+            full_address = f"{address}, {postcode}"
+            location = self.geolocator.geocode(full_address)
+            
+            if location:
+                return {
+                    'lat': location.latitude,
+                    'lng': location.longitude,
+                    'formatted_address': location.address
+                }
+            else:
+                # Try just with postcode if full address fails
+                location = self.geolocator.geocode(postcode)
+                if location:
+                    return {
+                        'lat': location.latitude,
+                        'lng': location.longitude,
+                        'formatted_address': location.address
+                    }
+                else:
+                    return None
+        except Exception as e:
+            print(f"Geocoding error: {str(e)}")
+            return None
+    
+    def find_nearby_places(self, location, place_type, radius=8000, keyword=None):
+        """Find places of a specific type within radius (in meters)"""
+        if not self.gmaps:
+            return []
+            
+        try:
+            places_result = []
+            params = {
+                'location': (location['lat'], location['lng']),
+                'radius': radius,
+                'type': place_type
+            }
+            
+            if keyword:
+                params['keyword'] = keyword
+                
+            places = self.gmaps.places_nearby(**params)
+            
+            if 'results' in places:
+                places_result.extend(places['results'])
+                
+            # Handle pagination if there are more results
+            while 'next_page_token' in places:
+                # Need to wait before requesting next page
+                time.sleep(2)
+                next_page_token = places['next_page_token']
+                places = self.gmaps.places_nearby(
+                    page_token=next_page_token
+                )
+                if 'results' in places:
+                    places_result.extend(places['results'])
+            
+            return places_result
+        except Exception as e:
+            print(f"Error finding nearby places: {str(e)}")
+            return []
+    
+    def get_population_density(self, postcode):
+        """Estimate population density based on available data"""
+        # This would ideally use a demographic API
+        # For now, return a placeholder value or use a free API if available
+        try:
+            # Placeholder for actual API call
+            return {
+                'density': 'Medium',  # Low/Medium/High placeholder
+                'estimated_population': '5,000-10,000 within 1 mile radius'  # Placeholder
+            }
+        except Exception as e:
+            print(f"Error getting population density: {str(e)}")
+            return {
+                'density': 'Unknown',
+                'estimated_population': 'Data not available'
+            }
+    
+    def analyze_area(self, address, postcode):
+        """Perform comprehensive area analysis"""
+        location = self.geocode_address(address, postcode)
+        
+        if not location:
+            return {
+                'success': False,
+                'error': 'Could not geocode the address'
+            }
+            
+        results = {
+            'success': True,
+            'location': location,
+            'schools': [],
+            'retail_areas': [],
+            'transport': {
+                'bus_stations': [],
+                'train_stations': []
+            },
+            'major_junctions': [],
+            'population': {}
+        }
+        
+        # Find nearby schools
+        schools = self.find_nearby_places(location, 'school')
+        results['schools'] = [{
+            'name': school.get('name', 'Unnamed School'),
+            'vicinity': school.get('vicinity', 'Unknown location'),
+            'rating': school.get('rating', 'Not rated'),
+            'types': school.get('types', [])
+        } for school in schools[:10]]  # Limit to 10 schools
+        
+        # Find retail areas (shopping_mall, department_store)
+        retail_areas = (
+            self.find_nearby_places(location, 'shopping_mall') + 
+            self.find_nearby_places(location, 'department_store') +
+            self.find_nearby_places(location, 'store', keyword='retail')
+        )
+        results['retail_areas'] = [{
+            'name': retail.get('name', 'Unnamed Retail'),
+            'vicinity': retail.get('vicinity', 'Unknown location'),
+            'rating': retail.get('rating', 'Not rated'),
+            'types': retail.get('types', [])
+        } for retail in retail_areas[:10]]  # Limit to 10 retail areas
+        
+        # Find transport hubs
+        bus_stations = self.find_nearby_places(location, 'bus_station')
+        train_stations = self.find_nearby_places(location, 'train_station')
+        
+        results['transport']['bus_stations'] = [{
+            'name': station.get('name', 'Unnamed Station'),
+            'vicinity': station.get('vicinity', 'Unknown location')
+        } for station in bus_stations[:5]]  # Limit to 5 stations
+        
+        results['transport']['train_stations'] = [{
+            'name': station.get('name', 'Unnamed Station'),
+            'vicinity': station.get('vicinity', 'Unknown location')
+        } for station in train_stations[:5]]  # Limit to 5 stations
+        
+        # Find major roads/junctions
+        # Using a keyword search for major intersections
+        junctions = self.find_nearby_places(location, 'intersection', keyword='junction')
+        results['major_junctions'] = [{
+            'name': junction.get('name', 'Unnamed Junction'),
+            'vicinity': junction.get('vicinity', 'Unknown location')
+        } for junction in junctions[:5]]  # Limit to 5 junctions
+        
+        # Get population data
+        results['population'] = self.get_population_density(postcode)
+        
+        # Count student population based on schools and their types
+        university_count = sum(1 for school in schools if 'university' in school.get('types', []))
+        college_count = sum(1 for school in schools if 'school' in school.get('types', []) and 'university' not in school.get('types', []))
+        
+        # Estimate student population
+        results['student_population'] = {
+            'universities': university_count,
+            'colleges': college_count,
+            'estimated_students': 'High' if university_count > 0 else ('Medium' if college_count > 3 else 'Low')
+        }
+        
+        return results
+    
 # Store Information class
 class StoreInformation:
     def __init__(self):
@@ -197,42 +381,55 @@ class StoreInformation:
 # PDF Report Generator
 class PDFReport:
     def __init__(self):
-        self.pdf = FPDF(orientation='P', unit='mm', format='A4')
-        self.pdf.add_page()
-        self.pdf.set_font("Arial", size=10)
-        self.pdf.set_left_margin(10)
-        self.pdf.set_right_margin(10)
-        self.pdf.set_auto_page_break(auto=True, margin=10)
+        self.elements = []
+        self.styles = getSampleStyleSheet()
+        
+        # Add custom styles
+        self.styles.add(ParagraphStyle(
+            name='CustomTitle',
+            parent=self.styles['Heading1'],
+            fontSize=16,
+            alignment=1,  # Center
+            textColor=colors.darkblue
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='Section',
+            parent=self.styles['Heading2'],
+            fontSize=12,
+            textColor=colors.black
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='Content',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            textColor=colors.black
+        ))
     
     def add_title(self, title):
-        self.pdf.set_font('Arial', 'B', 16)
-        self.pdf.set_text_color(0, 0, 128)
-        self.pdf.cell(190, 8, txt=title, ln=True, align='C')
-        self.pdf.ln(5)
+        self.elements.append(Paragraph(title, self.styles['CustomTitle']))
+        self.elements.append(Spacer(1, 12))
     
     def add_section(self, title):
-        self.pdf.set_font('Arial', 'B', 12)
-        self.pdf.set_text_color(0, 0, 0)
-        self.pdf.cell(190, 8, txt=title, ln=True)
-        self.pdf.ln(2)
+        self.elements.append(Paragraph(title, self.styles['Section']))
+        self.elements.append(Spacer(1, 6))
     
     def add_content(self, content):
-        self.pdf.set_font('Arial', '', 10)
-        self.pdf.set_text_color(0, 0, 0)
-        self.pdf.multi_cell(190, 6, txt=content)
-        self.pdf.ln(2)
+        self.elements.append(Paragraph(content, self.styles['Content']))
+        self.elements.append(Spacer(1, 3))
     
     def add_store_info(self, store_data):
         self.add_section("Store Information")
         for field, value in store_data.items():
-            self.add_content(f"{field}: {value}")
+            self.add_content(f"<b>{field}:</b> {value}")
     
     def add_survey_responses(self, answers):
         self.add_section("Survey Responses")
         for question, answer in answers.items():
-            self.add_content(f"Q: {question}")
-            self.add_content(f"A: {answer}")
-            self.pdf.ln(1)
+            self.add_content(f"<b>Q:</b> {question}")
+            self.add_content(f"<b>A:</b> {answer}")
+            self.elements.append(Spacer(1, 3))
     
     def add_quick_report(self, report, store_data, answers):
         self.add_store_info(store_data)
@@ -263,47 +460,138 @@ class PDFReport:
             self.add_section("Mitigation Steps")
             for category, items in mitigations.items():
                 if items:
-                    category_text = f"{category.title()}: {', '.join(items)}"
+                    category_text = f"<b>{category.title()}:</b> {', '.join(items)}"
                     self.add_content(category_text)
             
             # Add Implementation Details
             self.add_section("Implementation Details")
             for solution_name, details in solution_details.items():
                 if details:
-                    self.add_content(f"**Solution: {solution_name}**")
+                    self.add_content(f"<b>Solution: {solution_name}</b>")
                     if details['use_case']:
-                        self.add_content(f"Use Case: {details['use_case']}")
+                        self.add_content(f"<b>Use Case:</b> {details['use_case']}")
                     if details['links']:
-                        self.add_content(f"Reference Links: {details['links']}")
+                        self.add_content(f"<b>Reference Links:</b> {details['links']}")
                     if details['partners']:
-                        self.add_content(f"Partners: {details['partners']}")
+                        self.add_content(f"<b>Partners:</b> {details['partners']}")
                     if details['data_format']:
-                        self.add_content(f"Data Format: {details['data_format']}")
+                        self.add_content(f"<b>Data Format:</b> {details['data_format']}")
                     if details['immediate_actions']:
-                        self.add_content(f"Immediate Actions: {', '.join(details['immediate_actions'])}")
+                        self.add_content(f"<b>Immediate Actions:</b> {', '.join(details['immediate_actions'])}")
                     if details['data_collation']:
-                        self.add_content(f"Data Collation: {', '.join(details['data_collation'])}")
+                        self.add_content(f"<b>Data Collation:</b> {', '.join(details['data_collation'])}")
                     if details['dashboard']:
-                        self.add_content(f"Dashboard Features: {', '.join(details['dashboard'])}")
+                        self.add_content(f"<b>Dashboard Features:</b> {', '.join(details['dashboard'])}")
                     if details['wearable']:
-                        self.add_content(f"Wearable Features: {', '.join(details['wearable'])}")
+                        self.add_content(f"<b>Wearable Features:</b> {', '.join(details['wearable'])}")
                     if details['mobile']:
-                        self.add_content(f"Mobile Features: {', '.join(details['mobile'])}")
+                        self.add_content(f"<b>Mobile Features:</b> {', '.join(details['mobile'])}")
                     if details['soc']:
-                        self.add_content(f"SOC Features: {', '.join(details['soc'])}")
+                        self.add_content(f"<b>SOC Features:</b> {', '.join(details['soc'])}")
                     if details['audio_visual']:
-                        self.add_content(f"Audio/Visual Features: {', '.join(details['audio_visual'])}")
-                    self.pdf.ln(2)
+                        self.add_content(f"<b>Audio/Visual Features:</b> {', '.join(details['audio_visual'])}")
+                    self.elements.append(Spacer(1, 6))
+                    
+    def add_area_analysis_detailed(self, area_data):
+        """Add detailed area analysis to the PDF"""
+        if not area_data or not area_data.get('success', False):
+            self.add_section("Area Analysis")
+            self.add_content("Area analysis data not available.")
+            return
+            
+        self.add_section("AREA ANALYSIS")
+        
+        # Location info
+        if 'location' in area_data:
+            self.add_content(f"<b>Location:</b> {area_data['location'].get('formatted_address', 'Address not available')}")
+            
+        # Population info
+        if 'population' in area_data:
+            self.add_section("Population Demographics")
+            pop = area_data['population']
+            self.add_content(f"<b>Density:</b> {pop.get('density', 'Unknown')}")
+            self.add_content(f"<b>Estimated Population:</b> {pop.get('estimated_population', 'Unknown')}")
+            
+        # Student population
+        if 'student_population' in area_data:
+            students = area_data['student_population']
+            self.add_content(f"<b>Student Population:</b> {students.get('estimated_students', 'Unknown')}")
+            self.add_content(f"<b>Universities nearby:</b> {students.get('universities', 0)}")
+            self.add_content(f"<b>Colleges nearby:</b> {students.get('colleges', 0)}")
+        
+        # Schools
+        if 'schools' in area_data and area_data['schools']:
+            self.add_section("Educational Institutions Nearby")
+            for i, school in enumerate(area_data['schools'][:5], 1):  # Top 5 schools
+                self.add_content(f"{i}. <b>{school['name']}</b> - {school['vicinity']}")
+                
+        # Retail areas
+        if 'retail_areas' in area_data and area_data['retail_areas']:
+            self.add_section("Retail Areas Nearby")
+            for i, retail in enumerate(area_data['retail_areas'][:5], 1):  # Top 5 retail areas
+                self.add_content(f"{i}. <b>{retail['name']}</b> - {retail['vicinity']}")
+                
+        # Transport hubs
+        if 'transport' in area_data:
+            self.add_section("Transport Infrastructure")
+            
+            if area_data['transport']['train_stations']:
+                self.add_content("<b>Rail Stations:</b>")
+                for i, station in enumerate(area_data['transport']['train_stations'], 1):
+                    self.add_content(f"{i}. <b>{station['name']}</b> - {station['vicinity']}")
+                    
+            if area_data['transport']['bus_stations']:
+                self.add_content("<b>Bus Stations:</b>")
+                for i, station in enumerate(area_data['transport']['bus_stations'], 1):
+                    self.add_content(f"{i}. <b>{station['name']}</b> - {station['vicinity']}")
+                    
+        # Major junctions
+        if 'major_junctions' in area_data and area_data['major_junctions']:
+            self.add_section("Major Road Junctions")
+            for i, junction in enumerate(area_data['major_junctions'], 1):
+                self.add_content(f"{i}. <b>{junction['name']}</b> - {junction['vicinity']}")
+    
+    def add_area_analysis_quick(self, area_data):
+        """Add summarized area analysis to the quick PDF report"""
+        if not area_data or not area_data.get('success', False):
+            self.add_section("Area Analysis")
+            self.add_content("Area analysis data not available.")
+            return
+            
+        self.add_section("AREA ANALYSIS SUMMARY")
+        
+        # Location and Population Summary
+        if 'location' in area_data:
+            self.add_content(f"<b>Location:</b> {area_data['location'].get('formatted_address', 'Address not available')}")
+            
+        if 'population' in area_data:
+            self.add_content(f"<b>Population Density:</b> {area_data['population'].get('density', 'Unknown')}")
+            
+        # Count summaries
+        school_count = len(area_data.get('schools', []))
+        retail_count = len(area_data.get('retail_areas', []))
+        bus_count = len(area_data.get('transport', {}).get('bus_stations', []))
+        train_count = len(area_data.get('transport', {}).get('train_stations', []))
+        
+        self.add_content("<b>Nearby Points of Interest:</b>")
+        self.add_content(f"• <b>Schools:</b> {school_count}")
+        self.add_content(f"• <b>Retail Areas:</b> {retail_count}")
+        self.add_content(f"• <b>Train Stations:</b> {train_count}")
+        self.add_content(f"• <b>Bus Stations:</b> {bus_count}")
+        
+        if 'student_population' in area_data:
+            self.add_content(f"• <b>Student Population:</b> {area_data['student_population'].get('estimated_students', 'Unknown')}")
     
     def generate_pdf(self, filename):
         """Generate PDF file with the given filename"""
         try:
-            self.pdf.output(filename)
+            doc = SimpleDocTemplate(filename, pagesize=letter)
+            doc.build(self.elements)
             return True
         except Exception as e:
             print(f"Error generating PDF: {str(e)}")
             return False
-
+        
 # Risk Assessment Chat class
 class RiskAssessmentChat:
     def __init__(self, session_id=None):
@@ -320,6 +608,8 @@ class RiskAssessmentChat:
         self.setup_agent()
         self.state = "store_info"
         self.messages = []
+        self.area_analysis = AreaAnalysis()
+        self.area_data = None
 
     def setup_tools(self):
         self.risk_analyzer = RiskAnalyzerTool(data_processor=self.data_processor)
@@ -410,26 +700,49 @@ class RiskAssessmentChat:
 
         return report
     
+    def perform_area_analysis(self):
+        """Perform area analysis based on store information"""
+        if not self.store_info.store_data:
+            return None
+            
+        address = self.store_info.store_data.get('Address', '')
+        postcode = self.store_info.store_data.get('Postcode', '')
+        
+        if not address or not postcode:
+            return None
+            
+        self.area_data = self.area_analysis.analyze_area(address, postcode)
+        return self.area_data
+    
     def generate_pdf_report(self, report_type="detailed"):
         if report_type == "detailed":
             report = self.generate_detailed_report()
         else:
             report = self.generate_quick_report()
             
+        # Perform area analysis if not already done
+        if not self.area_data:
+            self.perform_area_analysis()
+            
         pdf_generator = PDFReport()
         pdf_generator.add_title("Security Risk Assessment Report")
         pdf_generator.add_content(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         if report_type == "detailed":
+            if self.area_data:
+                pdf_generator.add_area_analysis_detailed(self.area_data)
             pdf_generator.add_detailed_report(report, self.store_info.store_data, self.answers)
         else:
+            if self.area_data:
+                pdf_generator.add_area_analysis_quick(self.area_data)
             pdf_generator.add_quick_report(report, self.store_info.store_data, self.answers)
+            
         
         filename = f"security_assessment_{report_type}_{self.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         if pdf_generator.generate_pdf(filename):
             return filename
         return None
-
+    
 # Session storage
 sessions = {}
 
@@ -450,7 +763,7 @@ def start_session():
     return jsonify({
         'session_id': session.session_id,
         'state': session.state,
-        'message': "Welcome to the Security Risk Assessment. Let's start by collecting some information about your store."
+        'message': "Welcome to the Security Risk Assessment. Let's start by collecting some information about your store. what's your store name"
     })
 
 @app.route('/api/message', methods=['POST'])
@@ -533,6 +846,7 @@ def handle_message():
         'message': "I didn't understand that. Please try again."
     })
 
+# Update the get_report_status endpoint
 @app.route('/api/get_report', methods=['GET'])
 def get_report_status():
     session_id = request.args.get('session_id')
@@ -552,11 +866,16 @@ def get_report_status():
     quick_report = session.generate_quick_report()
     detailed_report = session.generate_detailed_report()
     
+    # Perform area analysis
+    area_data = session.perform_area_analysis()
+    
     return jsonify({
         'ready': True,
         'quick_report': quick_report,
         'detailed_report': detailed_report,
+        'area_analysis': area_data if area_data and area_data.get('success', False) else None
     })
+
 
 @app.route('/api/download_report', methods=['GET'])
 def download_report():

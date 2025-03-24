@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { AlertTriangle, CheckCircle, Clock, Download, Send, ChevronRight, FileText, PieChart as PieChartIcon, BarChart2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Download, Send, FileText, PieChart as  BarChart2 } from 'lucide-react';
 
 // Define the base URL for API requests
-const API_BASE_URL = 'http://localhost:5000/api';
+// const API_BASE_URL = 'https://securebackend.saransathish.click/api'; 
+
+const API_BASE_URL = 'http://localhost:5000/api'; 
+
 
 // Types for our application
 interface Message {
@@ -19,9 +22,9 @@ interface Session {
   state: string;
 }
 
-interface StoreInfo {
-  [key: string]: string;
-}
+// interface StoreInfo {
+//   [key: string]: string;
+// }
 
 interface RiskReport {
   identified_risks: string[];
@@ -59,6 +62,50 @@ interface DetailedReport {
   }>;
 }
 
+interface AreaAnalysis {
+  success: boolean;
+  location?: {
+    formatted_address: string;
+    lat: number;
+    lng: number;
+  };
+  population?: {
+    density: string;
+    estimated_population: string;
+  };
+  schools?: Array<{
+    name: string;
+    vicinity: string;
+    rating: string;
+    types: string[];
+  }>;
+  retail_areas?: Array<{
+    name: string;
+    vicinity: string;
+    rating: string;
+    types: string[];
+  }>;
+  transport?: {
+    bus_stations: Array<{
+      name: string;
+      vicinity: string;
+    }>;
+    train_stations: Array<{
+      name: string;
+      vicinity: string;
+    }>;
+  };
+  major_junctions?: Array<{
+    name: string;
+    vicinity: string;
+  }>;
+  student_population?: {
+    universities: number;
+    colleges: number;
+    estimated_students: string;
+  };
+}
+
 const SecurityAssessment: React.FC = () => {
   // State management
   const [messages, setMessages] = useState<Message[]>([]);
@@ -70,7 +117,7 @@ const SecurityAssessment: React.FC = () => {
   const [showDashboard, setShowDashboard] = useState(false);
   const [activeTab, setActiveTab] = useState('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
+  const [areaAnalysis, setAreaAnalysis] = useState<AreaAnalysis | null>(null);
   // Initialize the session when component mounts
   useEffect(() => {
     startSession();
@@ -166,6 +213,8 @@ const SecurityAssessment: React.FC = () => {
       if (response.data.ready) {
         setQuickReport(response.data.quick_report);
         setDetailedReport(response.data.detailed_report);
+        setAreaAnalysis(response.data.area_analysis); // Add this line
+
         setShowDashboard(true);
         setActiveTab('dashboard');
       }
@@ -174,6 +223,37 @@ const SecurityAssessment: React.FC = () => {
       addMessage('Failed to generate the report. Please try again.', 'bot');
     }
   };
+
+// Count nearby points of interest
+const countNearbyPoints = (areaData: AreaAnalysis) => {
+  if (!areaData || !areaData.success) return [];
+
+  const counts = {
+    Schools: areaData.schools?.length || 0,
+    'Retail Areas': areaData.retail_areas?.length || 0,
+    'Bus Stations': areaData.transport?.bus_stations.length || 0,
+    'Train Stations': areaData.transport?.train_stations.length || 0,
+    'Major Junctions': areaData.major_junctions?.length || 0,
+  };
+
+  return Object.keys(counts).map(key => ({
+    name: key,
+    count: counts[key as keyof typeof counts],
+  }));
+};
+
+// Format population data for display
+// const formatPopulationData = (areaData: AreaAnalysis) => {
+//   if (!areaData || !areaData.success) return null;
+
+//   return {
+//     density: areaData.population?.density || 'Unknown',
+//     estimatedPopulation: areaData.population?.estimated_population || 'Unknown',
+//     studentPopulation: areaData.student_population?.estimated_students || 'Unknown',
+//     universities: areaData.student_population?.universities || 0,
+//     colleges: areaData.student_population?.colleges || 0,
+//   };
+// };
 
   // Download a report
   const downloadReport = async (reportType: 'quick' | 'detailed') => {
@@ -315,7 +395,7 @@ const SecurityAssessment: React.FC = () => {
               className={`rounded-lg px-4 py-2 max-w-xs sm:max-w-md md:max-w-lg ${
                 message.sender === 'bot'
                   ? 'bg-white text-gray-800 shadow'
-                  : 'bg-blue-600 text-white'
+                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4'
               }`}
             >
               {formatMessage(message.content)}
@@ -360,7 +440,7 @@ const SecurityAssessment: React.FC = () => {
 
   // Render the dashboard
   const renderDashboard = () => {
-    if (!quickReport || !detailedReport) {
+    if (!quickReport || !detailedReport ) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center">
@@ -376,7 +456,11 @@ const SecurityAssessment: React.FC = () => {
     const severityColor = getSeverityColor(severity);
     const riskCategories = groupRisksByCategory();
     const mitigationTypes = countMitigationTypes();
-    
+    // const nearbyPoints = countNearbyPoints(areaAnalysis);
+    const nearbyPoints = areaAnalysis ? countNearbyPoints(areaAnalysis) : [];
+
+    // const populationData = formatPopulationData(areaAnalysis);
+      
     // COLORS for charts
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A174F2'];
     
@@ -452,8 +536,9 @@ const SecurityAssessment: React.FC = () => {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {riskCategories.map((entry, index) => (
+                    {riskCategories.map((_entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      
                     ))}
                   </Pie>
                   <Tooltip />
@@ -480,6 +565,52 @@ const SecurityAssessment: React.FC = () => {
           </div>
         </div>
         
+        {/* Nearby Points of Interest Chart */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h3 className="font-semibold text-gray-600 mb-4">Nearby Points of Interest</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={nearbyPoints}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="count" name="Number of Locations" fill="#8884d8" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+      {/* Population Density Chart */}
+      {/* <div className="bg-white rounded-lg shadow p-4">
+          <h3 className="font-semibold text-gray-600 mb-4">Population Density</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Density', value: populationData?.density === 'High' ? 1 : 0 },
+                    { name: 'Estimated Population', value: populationData?.estimatedPopulation === 'High' ? 1 : 0 },
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {COLORS.map((color, index) => (
+                    <Cell key={`cell-${index}`} fill={color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div> */}
+
         {/* Identified Risks */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <h3 className="font-semibold text-gray-600 mb-4">Identified Risks</h3>
@@ -522,7 +653,7 @@ const SecurityAssessment: React.FC = () => {
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       {/* Header */}
-      <header className="bg-blue-700 text-white p-4 shadow-md">
+      <header className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 ">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Security Risk Assessment</h1>
           {showDashboard && (
@@ -530,7 +661,7 @@ const SecurityAssessment: React.FC = () => {
               <button 
                 onClick={() => setActiveTab('chat')}
                 className={`px-3 py-1 rounded text-sm flex items-center ${
-                  activeTab === 'chat' ? 'bg-blue-800' : 'hover:bg-blue-600'
+                  activeTab === 'chat' ? 'bg-gradient-to-r from-indigo-800 to-purple-700 text-white' : 'hover:bg-gradient-to-r from-indigo-800 to-purple-500 text-white p-4'
                 }`}
               >
                 <FileText className="h-4 w-4 mr-1" />
@@ -539,7 +670,7 @@ const SecurityAssessment: React.FC = () => {
               <button 
                 onClick={() => setActiveTab('dashboard')}
                 className={`px-3 py-1 rounded text-sm flex items-center ${
-                  activeTab === 'dashboard' ? 'bg-blue-800' : 'hover:bg-blue-600'
+                  activeTab === 'dashboard' ? 'bg-gradient-to-r from-indigo-800 to-purple-700' : 'hover:bg-gradient-to-r from-indigo-600 to-purple-600'
                 }`}
               >
                 <BarChart2 className="h-4 w-4 mr-1" />
@@ -556,9 +687,9 @@ const SecurityAssessment: React.FC = () => {
       </main>
       
       {/* Footer */}
-      <footer className="bg-gray-100 text-center p-2 text-xs text-gray-500 border-t">
+      {/* <footer className="bg-gray-100 text-center p-2 text-xs text-gray-500 border-t">
         Security Risk Assessment Tool &copy; 2025 - All rights reserved
-      </footer>
+      </footer> */}
     </div>
   );
 };
