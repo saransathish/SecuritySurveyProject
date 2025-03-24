@@ -4,9 +4,9 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { AlertTriangle, CheckCircle, Clock, Download, Send, FileText, PieChart as  BarChart2 } from 'lucide-react';
 
 // Define the base URL for API requests
-const API_BASE_URL = 'https://securebackend.saransathish.click/api'; 
+// const API_BASE_URL = 'https://securebackend.saransathish.click/api'; 
 
-// const API_BASE_URL = 'http://localhost:5000/api'; 
+const API_BASE_URL = 'http://localhost:5000/api'; 
 
 
 // Types for our application
@@ -395,7 +395,7 @@ const countNearbyPoints = (areaData: AreaAnalysis) => {
               className={`rounded-lg px-4 py-2 max-w-xs sm:max-w-md md:max-w-lg ${
                 message.sender === 'bot'
                   ? 'bg-white text-gray-800 shadow'
-                  : 'bg-blue-600 text-white'
+                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4'
               }`}
             >
               {formatMessage(message.content)}
@@ -653,7 +653,7 @@ const countNearbyPoints = (areaData: AreaAnalysis) => {
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       {/* Header */}
-      <header className="bg-blue-700 text-white p-4 shadow-md">
+      <header className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 ">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Security Risk Assessment</h1>
           {showDashboard && (
@@ -661,7 +661,7 @@ const countNearbyPoints = (areaData: AreaAnalysis) => {
               <button 
                 onClick={() => setActiveTab('chat')}
                 className={`px-3 py-1 rounded text-sm flex items-center ${
-                  activeTab === 'chat' ? 'bg-blue-800' : 'hover:bg-blue-600'
+                  activeTab === 'chat' ? 'bg-gradient-to-r from-indigo-800 to-purple-700 text-white' : 'hover:bg-gradient-to-r from-indigo-800 to-purple-500 text-white p-4'
                 }`}
               >
                 <FileText className="h-4 w-4 mr-1" />
@@ -670,7 +670,7 @@ const countNearbyPoints = (areaData: AreaAnalysis) => {
               <button 
                 onClick={() => setActiveTab('dashboard')}
                 className={`px-3 py-1 rounded text-sm flex items-center ${
-                  activeTab === 'dashboard' ? 'bg-blue-800' : 'hover:bg-blue-600'
+                  activeTab === 'dashboard' ? 'bg-gradient-to-r from-indigo-800 to-purple-700' : 'hover:bg-gradient-to-r from-indigo-600 to-purple-600'
                 }`}
               >
                 <BarChart2 className="h-4 w-4 mr-1" />
@@ -687,9 +687,9 @@ const countNearbyPoints = (areaData: AreaAnalysis) => {
       </main>
       
       {/* Footer */}
-      <footer className="bg-gray-100 text-center p-2 text-xs text-gray-500 border-t">
+      {/* <footer className="bg-gray-100 text-center p-2 text-xs text-gray-500 border-t">
         Security Risk Assessment Tool &copy; 2025 - All rights reserved
-      </footer>
+      </footer> */}
     </div>
   );
 };

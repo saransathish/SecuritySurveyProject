@@ -351,16 +351,16 @@ class StoreInformation:
             {"field": "Store Identifier", "question": "What is your store identifier?"},
             {"field": "Address", "question": "What is the store address?"},
             {"field": "Postcode", "question": "What is the store postcode?"},
-            # {"field": "Store Format", "question": "What format is the store? (Superstore/Convenience store/Department store)"},
-            # {"field": "Location Footprint", "question": "What is the store's location footprint? (Retail park/Shopping centre/High street)"},
-            # {"field": "Selling Area Percentage", "question": "What percentage of the store size is selling area?"},
-            # {"field": "Service Checkout Counters", "question": "How many serviced checkout counters are available?"},
-            # {"field": "Self Service Checkouts", "question": "Do you have self service checkouts? (Yes/No)"},
-            # {"field": "High Risk Assets", "question": "What high-risk or high-value assets are present?"},
-            # {"field": "ATM Present", "question": "Do you have an ATM? (Yes/No)"},
-            # {"field": "ATM Type", "question": "What type of ATM do you have? (None/Freestanding/TTW/Both)"},
-            # {"field": "Customer Toilet", "question": "Do you have a customer toilet? (Yes/No)"},
-            # {"field": "Fitting Rooms", "question": "Do you have fitting rooms? (Yes/No)"}
+            {"field": "Store Format", "question": "What format is the store? (Superstore/Convenience store/Department store)"},
+            {"field": "Location Footprint", "question": "What is the store's location footprint? (Retail park/Shopping centre/High street)"},
+            {"field": "Selling Area Percentage", "question": "What percentage of the store size is selling area?"},
+            {"field": "Service Checkout Counters", "question": "How many serviced checkout counters are available?"},
+            {"field": "Self Service Checkouts", "question": "Do you have self service checkouts? (Yes/No)"},
+            {"field": "High Risk Assets", "question": "What high-risk or high-value assets are present?"},
+            {"field": "ATM Present", "question": "Do you have an ATM? (Yes/No)"},
+            {"field": "ATM Type", "question": "What type of ATM do you have? (None/Freestanding/TTW/Both)"},
+            {"field": "Customer Toilet", "question": "Do you have a customer toilet? (Yes/No)"},
+            {"field": "Fitting Rooms", "question": "Do you have fitting rooms? (Yes/No)"}
         ]
         self.store_data = {}
         self.current_field_idx = 0
@@ -763,7 +763,7 @@ def start_session():
     return jsonify({
         'session_id': session.session_id,
         'state': session.state,
-        'message': "Welcome to the Security Risk Assessment. Let's start by collecting some information about your store."
+        'message': "Welcome to the Security Risk Assessment. Let's start by collecting some information about your store. what's your store name"
     })
 
 @app.route('/api/message', methods=['POST'])
